@@ -1,0 +1,2 @@
+brick = ConnectBrick('');
+brick.beep();
