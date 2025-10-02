@@ -1,10 +1,15 @@
-brick = ConnectBrick('RUMPSHAKER')
+%brick = ConnectBrick('RUMPSHAKER');
 
-touch = brick.TouchedPressed(1);
-while 1 
+while 1
+    touch = brick.TouchPressed(2);
     if touch
+        display("working");
         break;
-    else
-        brick.beep();
+    end
 
+
+    brick.beep();
+   
 end
+
+
