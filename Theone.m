@@ -1,2 +1,1 @@
-brick = ConnectBrick('');
-brick.beep();
+brick = ConnectBrick('RUMPSHAKER');
