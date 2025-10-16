@@ -21,8 +21,8 @@ while running
             running = false;
             disp('Exiting...');
         case 6  % Right turn
-            brick.MoveMotor('AD', 100);
+            brick.MoveMotor('C', 100);
         case 7  % Quit program
-            brick.MoveMotor('AD', -100);
+            brick.MoveMotor('C', -100);
         end
     end
