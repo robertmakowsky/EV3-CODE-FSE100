@@ -12,37 +12,56 @@
 %   plot(path) - visualize maze with path
 
 
-blue; % pickup zone
-yellow; % start zone
-green; % drop off zone
+% Define constants for maze values
+UNKNOWN = 2;
+WALL = 1;
+FREE = 0;
+VISITED = 3;
+CURRENT = 4;
+
+% Define color constants
+blue = 2;    % pickup zone
+yellow = 4;  % start zone
+green = 3;   % drop off zone
+
+% Initialize maze and robot state
 AutonomousMode = true; % whether autonomous mode is active or not
-maze  = [2 2 2 2 2; 
-        2 2 2 2 2; 
-        2 2 2 2 2; 
-        2 2 2 2 2; 
-        2 2 2 2 2; 
-        2 2 2 2 2; 
-        2 2 2 2 2; 
-        2 2 2 2 2; 
-        2 2 2 2 2;
-        2 2 2 2 2; 
-        2 2 2 2 2] % logical matrix: 1 = wall, 0 = free, 2 = unknown
-        angle = 0    % heading angle in radians
-       distance = sonicSensor(brick); % distance to nearest object in m
+maze = [2 2 2 2 2; 
+       2 2 2 2 2; 
+       2 2 2 2 2; 
+       2 2 2 2 2; 
+       2 2 2 2 2; 
+       2 2 2 2 2; 
+       2 2 2 2 2; 
+       2 2 2 2 2; 
+       2 2 2 2 2;
+       2 2 2 2 2; 
+       2 2 2 2 2]; % 2 = unknown, 1 = wall, 0 = free, 3 = visited, 4 = current
+
+% Initialize robot position (middle of maze)
+robotRow = 6;    % Start in middle row
+robotCol = 3;    % Start in middle column
+% 0 = North, 90 = East, 180 = South, 270 = West
+robotOrientation = 0;  % Start facing North
+
+% Update initial position
+maze(robotRow, robotCol) = CURRENT;
        heading = gyroSensor(brick);
+       colorSensor = brick.ColorSensor(1);  % Adjust port number as needed
+       distance = brick.UltrasonicSensor(2); % Adjust port number as needed
        
 
 
 
-        function nextMove(obj)
-            if obj.AutonomousMode
+        function nextMove()
+            if AutonomousMode
                 getNextCommand()
             end
-            if ~obj.AutonomousMode
+            if ~AutonomousMode
                 userControl()
             end
         end
-        function userControl(obj)
+        function userControl()
             f = figure('Name', 'EV3 Keyboard Control', ...
            'KeyPressFcn', @keyDown, ...
            'KeyReleaseFcn', @keyUp, ...
@@ -86,7 +105,7 @@ maze  = [2 2 2 2 2;
                     setappdata(src, 'running', false);
                     brick.StopAllMotors();
                     disp('Exiting manual control mode.');
-                    obj.AutonomousMode = true;
+                    AutonomousMode = true;
             end
 
         end
@@ -113,24 +132,72 @@ maze  = [2 2 2 2 2;
 
     end
 
-        function constrainMaze(obj)
-            obj.maze
+        function updateMaze()
+            % Updates the maze based on current sensor readings and position
+            global maze robotRow robotCol robotOrientation;
+            
+            % Mark current position as visited
+            maze(robotRow, robotCol) = VISITED;
+            
+            % Get distance reading
+            dist = readLeftDistance();
+            
+            % Based on robot's orientation, update appropriate cells
+            switch robotOrientation
+                case 0  % Facing North
+                    checkWall(robotRow, robotCol-1, dist);  % Check West
+                case 90 % Facing East
+                    checkWall(robotRow-1, robotCol, dist);  % Check North
+                case 180 % Facing South
+                    checkWall(robotRow, robotCol+1, dist);  % Check East
+                case 270 % Facing West
+                    checkWall(robotRow+1, robotCol, dist);  % Check South
+            end
+            
+            % Update current position
+            maze(robotRow, robotCol) = CURRENT;
+            
+            % Display the updated maze
+            displayMaze();
+        end
+        
+        function checkWall(row, col, distance)
+            % Checks if there's a wall at the given position based on sensor reading
+            global maze;
+            
+            % Only update if the position is within bounds
+            if row >= 1 && row <= size(maze,1) && col >= 1 && col <= size(maze,2)
+                if distance < 0.2  % If distance is less than 20cm
+                    maze(row, col) = WALL;
+                else
+                    maze(row, col) = FREE;
+                end
+            end
+        end
+        
+        function displayMaze()
+            % Displays the maze with ASCII characters
+            global maze;
+            
+            % Define display characters
+            symbols = ' #.@?';  % FREE=0, WALL=1, VISITED=3, CURRENT=4, UNKNOWN=2
+            
+            % Print the maze
+            fprintf('\nCurrent Maze State:\n');
+            for i = 1:size(maze,1)
+                for j = 1:size(maze,2)
+                    fprintf('%c ', symbols(maze(i,j) + 1));
+                end
+                fprintf('\n');
+            end
+            fprintf('\n');
         end
 
-        %TODO: define threshold
-        function angle  = calculateHeading(obj)
-            angle = atan(NextRowWallDistance  / NextRowWallDistance);
-            if (angle > threshold)
-                turnLeft(obj);
-            end
-            if (angle < threshold)
-                turnRight(obj);
-            end
-        end
+      
 
 
         %runs throught the maze with no knowledge of the maze
-        function mazeNavigation(obj)
+        function mazeNavigation()
             % Simple left-hand wall follower that looks for a green goal
             % The maze is 6x3 with 0.6m squares. This routine uses
             % - a color sensor to detect the green goal (must be available via a helper)
@@ -161,10 +228,10 @@ maze  = [2 2 2 2 2;
                 steps = steps + 1;
 
                 % check color sensor first (high priority)
-                c = obj.readColor();
-                if strcmpi(c, 'green') || strcmpi(c, 'g') || c==3
+                c = readColor();
+                if strcmpi(c, 'yellow') || strcmpi(c, 'y') || c==3
                     % green detected — stop and announce
-                    obj.stopMotors();
+                    stopMotors();
                     disp('Goal (green) detected — stopping.');
                     found = true;
                     break;
@@ -173,11 +240,11 @@ maze  = [2 2 2 2 2;
                 % (Back touch sensor removed) — no back-touch collision recovery
 
                 % left-hand wall-following: read left distance
-                leftDist = obj.readLeftDistance();
+                leftDist = readLeftDistance();
 
                 if isempty(leftDist) || isnan(leftDist)
                     % if left distance not available, just move forward one cell
-                    obj.moveForward(squareSize, forwardSpeedPower, forwardSpeedMps);
+                    moveForward(squareSize, forwardSpeedPower, forwardSpeedMps);
                     pause(samplePause);
                     continue;
                 end
@@ -186,8 +253,8 @@ maze  = [2 2 2 2 2;
                 if leftDist > (desiredLeftDistance + leftCloserTol)
                     % open on the left -> turn left into it and move forward
                     disp('Opening on the left — turning left into corridor');
-                    obj.turnLeft(0.45);
-                    obj.moveForward(squareSize, forwardSpeedPower, forwardSpeedMps);
+                    turnLeft(0.45);
+                    moveForward(squareSize, forwardSpeedPower, forwardSpeedMps);
                     pause(samplePause);
                     continue;
                 end
@@ -196,14 +263,14 @@ maze  = [2 2 2 2 2;
                 if leftDist < (desiredLeftDistance - leftCloserTol)
                     % too close to left wall — steer right slightly while moving
                     disp('Too close to left wall — steering right');
-                    obj.setMotorPower(forwardSpeedPower, round(forwardSpeedPower*0.6));
+                    setMotorPower(forwardSpeedPower, round(forwardSpeedPower*0.6));
                     pause(0.25);
-                    obj.stopMotors();
+                    stopMotors();
                     continue;
                 end
 
                 % Otherwise move forward one cell
-                obj.moveForward(squareSize, forwardSpeedPower, forwardSpeedMps);
+                moveForward(squareSize, forwardSpeedPower, forwardSpeedMps);
                 pause(samplePause);
             end
 
@@ -214,32 +281,61 @@ maze  = [2 2 2 2 2;
         end
 
 
-        function turnLeft(obj, duration)
-            % In-place left turn. duration optional (seconds).
-            if nargin < 2 || isempty(duration)
-                duration = 0.45;
+        function turnToHeading(targetHeading)
+            % Turn to a specific heading using the gyro sensor
+            % targetHeading should be in degrees (0-359)
+            global robotOrientation;
+            
+            currentHeading = gyroSensor(brick);
+            
+            % Calculate the shortest turning direction
+            diff = mod(targetHeading - currentHeading + 180, 360) - 180;
+            
+            % Set turning power based on the magnitude of the turn
+            p = min(35, max(20, abs(diff) / 2));
+            
+            while abs(diff) > 2  % 2-degree tolerance
+                currentHeading = gyroSensor(brick);
+                diff = mod(targetHeading - currentHeading + 180, 360) - 180;
+                
+                if diff > 0
+                    % Turn left
+                    setMotorPower(-p, p);
+                else
+                    % Turn right
+                    setMotorPower(p, -p);
+                end
+                pause(0.05);
             end
-            p = 35;
-            obj.setMotorPower(-p, p);
-            pause(duration);
-            obj.stopMotors();
+            
+            stopMotors();
             pause(0.05);
+            
+            % Update robot's orientation
+            robotOrientation = mod(targetHeading, 360);
+            
+            % Update the maze display after turning
+            updateMaze();
         end
 
-        function turnRight(obj, duration)
-            % In-place right turn. duration optional (seconds).
-            if nargin < 2 || isempty(duration)
-                duration = 0.45;
-            end
-            p = 35;
-            obj.setMotorPower(p, -p);
-            pause(duration);
-            obj.stopMotors();
-            pause(0.05);
+        function turnLeft()
+            % Turn left 90 degrees using gyro sensor
+            currentHeading = gyroSensor(brick);
+            targetHeading = mod(currentHeading - 90, 360);  % Subtract 90 degrees
+            turnToHeading(targetHeading);
         end
 
-        function moveForward(obj, distance, power, speedMps)
-            % Move forward approx `distance` meters (time-estimated).
+        function turnRight()
+            % Turn right 90 degrees using gyro sensor
+            currentHeading = gyroSensor(brick);
+            targetHeading = mod(currentHeading + 90, 360);  % Add 90 degrees
+            turnToHeading(targetHeading);
+        end
+
+        function moveForward(distance, power, speedMps)
+            % Move forward approx `distance` meters while maintaining heading
+            global robotRow robotCol robotOrientation;
+            
             if nargin < 4 || isempty(speedMps)
                 speedMps = 0.20;
             end
@@ -249,14 +345,44 @@ maze  = [2 2 2 2 2;
             if nargin < 2 || isempty(distance)
                 distance = 0.6;
             end
+            
+            targetHeading = gyroSensor(brick);  % Get initial heading
             t = max(0.05, distance / speedMps);
-            obj.setMotorPower(power, power);
-            pause(t);
-            obj.stopMotors();
+            startTime = tic;
+            
+            while toc(startTime) < t
+                currentHeading = gyroSensor(brick);
+                headingError = mod(targetHeading - currentHeading + 180, 360) - 180;
+                
+                % Adjust motor powers based on heading error
+                correction = min(10, abs(headingError)) * sign(headingError);
+                leftPower = power - correction;
+                rightPower = power + correction;
+                
+                setMotorPower(leftPower, rightPower);
+                pause(0.05);
+            end
+            
+            stopMotors();
             pause(0.05);
+            
+            % Update robot position based on orientation
+            switch robotOrientation
+                case 0      % Facing North
+                    robotRow = robotRow - 1;
+                case 90     % Facing East
+                    robotCol = robotCol + 1;
+                case 180    % Facing South
+                    robotRow = robotRow + 1;
+                case 270    % Facing West
+                    robotCol = robotCol - 1;
+            end
+            
+            % Update the maze display
+            updateMaze();
         end
 
-        function moveBackward(obj, distance, power)
+        function moveBackward(distance, power)
             % Move backward approx `distance` meters (time-estimated).
             if nargin < 3 || isempty(power)
                 power = 30;
@@ -266,43 +392,43 @@ maze  = [2 2 2 2 2;
             end
             speedMps = 0.15;
             t = max(0.05, distance / speedMps);
-            obj.setMotorPower(-power, -power);
+            setMotorPower(-power, -power);
             pause(t);
-            obj.stopMotors();
+            stopMotors();
             pause(0.05);
         end
 
-        function navigate(obj)
+        function navigate()
             % alias
-            obj.mazeNavigation();
+            mazeNavigation();
         end
 
         % --- sensor/motor helper methods ---
-        function c = readColor(obj)
+        function c = readColor()
             % Return detected color name or numeric code. 'unknown' if unavailable.
             c = 'unknown';
             try
-                if isprop(obj, 'color') && ~isempty(obj.color)
-                    c = readColor(obj.color);
-                elseif isprop(obj, 'colorSensor') && ~isempty(obj.colorSensor)
-                    c = readColor(obj.colorSensor);
+                if ~isempty(color)
+                    c = readColor(color);
+                elseif isprop('colorSensor') && ~isempty(colorSensor)
+                    c = readColor(colorSensor);
                 end
             catch
                 % leave as 'unknown'
             end
         end
 
-        function d = readLeftDistance(obj)
+        function d = readLeftDistance()
             % Return left ultrasonic distance in meters, NaN if not available
             d = NaN;
             try
-                if isprop(obj, 'distance') && ~isempty(obj.distance)
+                if ~isempty(distance)
                     if exist('readDistance', 'file')==2
-                        d = readDistance(obj.distance);
-                    elseif ismethod(obj.distance, 'read')
-                        d = obj.distance.read();
-                    elseif isprop(obj.distance, 'Distance')
-                        d = obj.distance.Distance;
+                        d = readDistance(distance);
+                    elseif ismethod(distance, 'read')
+                        d = distance.read();
+                    else 
+                        d = distance.Distance;
                     end
                 end
             catch
@@ -312,12 +438,12 @@ maze  = [2 2 2 2 2;
 
         % back touch sensor removed — no readBackTouch() helper
 
-        function setMotorPower(obj, leftPwr, rightPwr)
+        function setMotorPower( leftPwr, rightPwr)
             % Set left/right motor power (A and D assumed).
             try
-                if isprop(obj, 'brick') && ~isempty(obj.brick)
-                    obj.brick.MoveMotor('A', leftPwr);
-                    obj.brick.MoveMotor('D', rightPwr);
+                if ~isempty(brick)
+                    brick.MoveMotor('A', leftPwr);
+                    brick.MoveMotor('D', rightPwr);
                 else
                     % try global brick if present
                     if exist('brick', 'var')==1 && ~isempty(brick)
@@ -329,10 +455,10 @@ maze  = [2 2 2 2 2;
             end
         end
 
-        function stopMotors(obj)
+        function stopMotors()
             try
-                if isprop(obj, 'brick') && ~isempty(obj.brick)
-                    obj.brick.StopAllMotors('Brake');
+                if ~isempty(brick)
+                    brick.StopAllMotors('Brake');
                 elseif exist('brick', 'var')==1 && ~isempty(brick)
                     brick.StopAllMotors('Brake');
                 end
