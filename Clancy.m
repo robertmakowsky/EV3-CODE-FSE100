@@ -46,9 +46,31 @@ robotOrientation = 0;  % Start facing North
 
 % Update initial position
 maze(robotRow, robotCol) = CURRENT;
-       heading = brick.gyroSensor(1);
-       colorSensor = brick.ColorSensor(4);  % Adjust port number as needed
-       distance = brick.UltrasonicSensor(3); % Adjust port number as needed
+
+% Initialize sensors (adjust ports as needed). Use try/catch so file
+% can still run in environments where the brick or sensors are not connected.
+gyro = [];
+color = [];
+colorSensor = [];
+distance = [];
+try
+    gyro = brick.GyroSensor(1);
+catch
+    % gyro not available
+    gyro = [];
+end
+try
+    color = brick.ColorSensor(4);  % Color sensor object
+    colorSensor = color;
+catch
+    color = [];
+    colorSensor = [];
+end
+try
+    distance = brick.UltrasonicSensor(3); % Ultrasonic sensor object
+catch
+    distance = [];
+end
        
 
 
@@ -286,7 +308,7 @@ maze(robotRow, robotCol) = CURRENT;
             % targetHeading should be in degrees (0-359)
             global robotOrientation;
             
-            currentHeading = gyroSensor(brick);
+            currentHeading = readGyro();
             
             % Calculate the shortest turning direction
             diff = mod(targetHeading - currentHeading + 180, 360) - 180;
@@ -295,7 +317,7 @@ maze(robotRow, robotCol) = CURRENT;
             p = min(35, max(20, abs(diff) / 2));
             
             while abs(diff) > 2  % 2-degree tolerance
-                currentHeading = gyroSensor(brick);
+                currentHeading = readGyro();
                 diff = mod(targetHeading - currentHeading + 180, 360) - 180;
                 
                 if diff > 0
@@ -320,14 +342,14 @@ maze(robotRow, robotCol) = CURRENT;
 
         function turnLeft()
             % Turn left 90 degrees using gyro sensor
-            currentHeading = gyroSensor(brick);
+            currentHeading = readGyro();
             targetHeading = mod(currentHeading - 90, 360);  % Subtract 90 degrees
             turnToHeading(targetHeading);
         end
 
         function turnRight()
             % Turn right 90 degrees using gyro sensor
-            currentHeading = gyroSensor(brick);
+            currentHeading = readGyro();
             targetHeading = mod(currentHeading + 90, 360);  % Add 90 degrees
             turnToHeading(targetHeading);
         end
@@ -346,12 +368,12 @@ maze(robotRow, robotCol) = CURRENT;
                 distance = 0.6;
             end
             
-            targetHeading = gyroSensor(brick);  % Get initial heading
+            targetHeading = readGyro();  % Get initial heading
             t = max(0.05, distance / speedMps);
             startTime = tic;
             
             while toc(startTime) < t
-                currentHeading = gyroSensor(brick);
+                currentHeading = readGyro();
                 headingError = mod(targetHeading - currentHeading + 180, 360) - 180;
                 
                 % Adjust motor powers based on heading error
@@ -437,6 +459,25 @@ maze(robotRow, robotCol) = CURRENT;
         end
 
         % back touch sensor removed — no readBackTouch() helper
+        function h = readGyro()
+            % Return current heading in degrees (0-359). NaN if unavailable.
+            h = NaN;
+            try
+                if exist('gyro','var')==1 && ~isempty(gyro)
+                    if ismethod(gyro, 'read')
+                        h = gyro.read();
+                    elseif isprop(gyro, 'Angle')
+                        h = gyro.Angle;
+                    else
+                        % try numeric value
+                        h = double(gyro);
+                    end
+                    h = mod(double(h), 360);
+                end
+            catch
+                h = NaN;
+            end
+        end
 
         function setMotorPower( leftPwr, rightPwr)
             % Set left/right motor power (A and D assumed).
