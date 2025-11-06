@@ -46,9 +46,9 @@ robotOrientation = 0;  % Start facing North
 
 % Update initial position
 maze(robotRow, robotCol) = CURRENT;
-       heading = gyroSensor(brick);
-       colorSensor = brick.ColorSensor(1);  % Adjust port number as needed
-       distance = brick.UltrasonicSensor(2); % Adjust port number as needed
+       heading = brick.gyroSensor(1);
+       colorSensor = brick.ColorSensor(4);  % Adjust port number as needed
+       distance = brick.UltrasonicSensor(3); % Adjust port number as needed
        
 
 
