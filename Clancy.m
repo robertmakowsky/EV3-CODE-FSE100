@@ -3,16 +3,9 @@ function MazeSolverMain()
 % Requires: MATLAB Support Package for LEGO MINDSTORMS EV3 Hardware
 
 
-clc; clear; close all;
+clc; clear; close all; %#ok<CLEAR0ARGS>
 
 % Connect to EV3 brick (adjust name as needed)
-try
-    brick = ConnectBrick('RUMPSHAKER');
-    disp('✅ Connected to EV3 brick.');
-catch
-    warning('⚠️ Could not connect to EV3 brick. Running in simulation mode.');
-    brick = [];
-end
 
 % Maze constants
 global UNKNOWN WALL FREE VISITED CURRENT
@@ -35,20 +28,20 @@ distance = safeInitSensor(@() ultrasonicSensor(brick, 3));
 
 dispMaze();
 
-%% === MAIN CONTROL LOOP ===
+
 while true
     if AutonomousMode
-        disp('🤖 Autonomous mode active.');
+        disp('Autonomous mode active.');
         mazeNavigation(brick, gyro, color, distance);
         break; % stop after maze run
     else
-        disp('🎮 Manual control mode.');
+        disp(' Manual control mode.');
         userControl(brick);
     end
 end
 
 
-%% === NESTED FUNCTIONS BELOW ===
+
 
     function s = safeInitSensor(initFcn)
         try
@@ -132,7 +125,7 @@ end
             c = readColorSensor(color);
             if strcmpi(c,'green')
                 stopMotors(brick);
-                disp('🎯 Goal detected — stopping.');
+                disp('Goal reached');
                 found = true; break;
             end
             leftDist = readDistanceSensor(distance);
@@ -144,7 +137,7 @@ end
             moveForward(brick, gyro, squareSize, forwardPower, speed);
         end
         if ~found
-            disp('🌀 Max steps reached — stopping.');
+            disp('ERROR');
         end
     end
 
@@ -233,7 +226,7 @@ end
 
     function dispMaze()
         symbols = ' #.?@'; % 0=space,1=#,2=?,3=.,4=@
-        fprintf('\n🧭 Maze State:\n');
+        fprintf('\nMaze State:\n');
         for i = 1:size(maze,1)
             for j = 1:size(maze,2)
                 fprintf('%c ', symbols(maze(i,j)+1));
